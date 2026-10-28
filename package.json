@@ -1,0 +1,52 @@
+{
+  "name": "opencode-jira",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "OpenCode TUI plugin: Jira boards, sprints, backlog, epics, hierarchies and dependencies",
+  "exports": {
+    "./tui": "./dist/tui.js"
+  },
+  "files": [
+    "dist/tui.js"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/craig-dougan-maersk/opencode-jira.git"
+  },
+  "engines": {
+    "node": ">=26.12.1"
+  },
+  "packageManager": "npm@11.6.2",
+  "scripts": {
+    "compile": "node scripts/compile.mjs",
+    "check:dist": "node scripts/compile.mjs --check",
+    "typecheck": "tsc --noEmit",
+    "test:package": "node --test --test-concurrency=1 test/package.test.mjs test/external.test.mjs",
+    "test:unit": "node --experimental-strip-types --test test/workspace.ts test/comment-client.ts",
+    "test:interaction": "node test/run-interaction.mjs",
+    "test:native": "node test/run-interaction.mjs --native",
+    "test": "npm run typecheck && npm run check:dist && npm run test:package && npm run test:unit && npm run test:interaction && npm run test:native"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/parser": "7.28.5",
+    "@opencode/plugin": "2.2.0",
+    "@opentui/core": "0.7.0",
+    "@opentui/solid": "0.7.0",
+    "@types/node": "22.18.0",
+    "babel-preset-solid": "1.9.12",
+    "esbuild": "0.25.12",
+    "prettier": "3.6.2",
+    "solid-js": "1.9.12",
+    "typescript": "5.9.3"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.6.6",
+    "@opentui/solid": ">=0.6.6",
+    "solid-js": ">=1.9.0"
+  },
+  "overrides": {
+    "seroval": "1.6.3"
+  }
+}
