@@ -1,0 +1,22 @@
+name: Verify compiled plugin
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 26.12.1
+        cache: npm
+    - run: npm install --global npm@11.6.2
+    - run: npm ci --ignore-scripts
+      # Check the submitted artifact before compilation could overwrite it.
+    - run: npm run check:dist
+    - run: npm run compile
+    - run: git diff --exit-code -- dist/tui.js
+    - run: npm test
