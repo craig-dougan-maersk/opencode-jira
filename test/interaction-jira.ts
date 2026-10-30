@@ -19,6 +19,8 @@ export const setCommentFailure = (value: boolean) => {
 };
 export const issueReads: string[] = [];
 export const siteWrites: { site: string; key: string }[] = [];
+export const transitionWrites: { key: string; id: string }[] = [];
+export const backlogWrites: string[] = [];
 export let baselineDelay: Promise<void> | undefined;
 export const setBaselineDelay = (value?: Promise<void>) => {
   baselineDelay = value;
@@ -104,9 +106,14 @@ export class JiraClient {
     return [{ id: 1, name: "Fixture Board", type: "scrum" }];
   }
   async transitions() {
-    return [{ id: "2", name: "Resolved" }];
+    return [{ id: "2", name: "Resolved", to: { id: "2", name: "Build" } }];
   }
-  async transition() {
+  async transition(key: string, id: string) {
+    transitionWrites.push({ key, id });
+    fixtures.changed = true;
+  }
+  async sendToBacklog(keys: readonly string[]) {
+    for (const key of keys) backlogWrites.push(key);
     fixtures.changed = true;
   }
   async assign() {

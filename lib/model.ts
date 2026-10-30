@@ -158,6 +158,55 @@ export function groupByColumn(
   }));
 }
 
+/** A board's displayed columns: unique names in board order, with unioned status ids. */
+export interface BoardColumn {
+  readonly name: string;
+  readonly statusIds: readonly string[];
+}
+
+export function boardColumns(columns: readonly Column[]): BoardColumn[] {
+  const order: string[] = [];
+  const statuses = new Map<string, string[]>();
+  for (const column of columns) {
+    if (!statuses.has(column.name)) {
+      order.push(column.name);
+      statuses.set(column.name, []);
+    }
+    const owned = statuses.get(column.name)!;
+    for (const statusId of column.statusIds)
+      if (!owned.includes(statusId)) owned.push(statusId);
+  }
+  return order.map((name) => ({ name, statusIds: statuses.get(name)! }));
+}
+
+/** Index of the displayed column that owns a status id, or -1 when unmapped. */
+export function boardColumnForStatus(
+  columns: readonly BoardColumn[],
+  statusId: string,
+): number {
+  return columns.findIndex((column) => column.statusIds.includes(statusId));
+}
+
+export interface TransitionOption {
+  readonly id: string;
+  readonly name: string;
+  readonly toId?: string;
+}
+
+/**
+ * The first available transition whose target status belongs to the column.
+ * Returns undefined when the workflow cannot reach that column directly.
+ */
+export function transitionForColumn(
+  transitions: readonly TransitionOption[],
+  column: BoardColumn,
+): TransitionOption | undefined {
+  return transitions.find(
+    (transition) =>
+      !!transition.toId && column.statusIds.includes(transition.toId),
+  );
+}
+
 export interface EpicGroup {
   readonly epicKey: string | null;
   readonly epicSummary: string;

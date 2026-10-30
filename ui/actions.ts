@@ -1,5 +1,10 @@
 import type { JiraClient } from "../lib/jira.ts";
 import type { Issue, BoardConfig, SprintInfo } from "../lib/types.ts";
+import {
+  boardColumns,
+  boardColumnForStatus,
+  transitionForColumn,
+} from "../lib/model.ts";
 interface Options {
   context: any;
   issue(): Issue | undefined;
@@ -100,4 +105,110 @@ export async function runTicketAction(
       duration: 8000,
     });
   }
+}
+
+/**
+ * Move the selected issue to an adjacent board column, transitioning it to a
+ * status the column owns. Confirms before the write; a column with no direct
+ * transition or an unmapped status leaves the issue untouched.
+ */
+export async function moveToColumn(a: Options, delta: number) {
+  const issue = a.issue();
+  if (!issue) {
+    a.context.ui.toast.show({
+      message: "No issue selected",
+      variant: "warning",
+    });
+    return;
+  }
+  const config = a.board();
+  const columns = config ? boardColumns(config.columns) : [];
+  if (columns.length < 2) {
+    a.context.ui.toast.show({
+      message: "No board columns to move between",
+      variant: "warning",
+    });
+    return;
+  }
+  const current = boardColumnForStatus(columns, issue.statusId);
+  if (current < 0) {
+    a.context.ui.toast.show({
+      message: `${issue.key} is not on a board column`,
+      variant: "warning",
+    });
+    return;
+  }
+  const target = current + delta;
+  if (target < 0 || target >= columns.length) {
+    a.context.ui.toast.show({
+      message: `No ${delta < 0 ? "earlier" : "later"} column`,
+      variant: "warning",
+    });
+    return;
+  }
+  const column = columns[target];
+  const c = a.client();
+  try {
+    const match = transitionForColumn(
+      (await c.transitions(issue.key)).map((transition) => ({
+        id: transition.id,
+        name: transition.name,
+        toId: transition.to?.id,
+      })),
+      column,
+    );
+    if (!match) {
+      a.context.ui.toast.show({
+        message: `No transition from ${issue.status} to ${column.name}`,
+        variant: "warning",
+      });
+      return;
+    }
+    const confirmed = await a.context.ui.dialog.confirm({
+      title: `Move ${issue.key} to ${column.name}?`,
+      message: `${issue.summary}\n${issue.status} → ${column.name} (${match.name})`,
+      label: { confirm: "Move", cancel: "Cancel" },
+    });
+    if (!confirmed) return;
+    await c.transition(issue.key, match.id);
+    a.context.ui.toast.show({
+      message: `${issue.key} → ${column.name}`,
+      variant: "success",
+    });
+  } catch (e) {
+    a.context.ui.toast.show({
+      title: "Jira",
+      message: a.message(e),
+      variant: "error",
+      duration: 8000,
+    });
+  }
+  await a.refresh();
+}
+
+/** Send the selected issue to the board backlog, removing it from any sprint. */
+export async function sendToBacklog(a: Options) {
+  const issue = a.issue();
+  if (!issue) {
+    a.context.ui.toast.show({
+      message: "No issue selected",
+      variant: "warning",
+    });
+    return;
+  }
+  try {
+    await a.client().sendToBacklog([issue.key]);
+    a.context.ui.toast.show({
+      message: `${issue.key} sent to backlog`,
+      variant: "success",
+    });
+  } catch (e) {
+    a.context.ui.toast.show({
+      title: "Jira",
+      message: a.message(e),
+      variant: "error",
+      duration: 8000,
+    });
+  }
+  await a.refresh();
 }

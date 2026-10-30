@@ -524,6 +524,14 @@ var JiraClient = class {
       signal
     });
   }
+  /** Move issues to the board backlog. Idempotent: already-backlog issues are kept. */
+  async sendToBacklog(keys, signal) {
+    if (keys.length === 0) return;
+    await this.request("POST", `${AGILE}/backlog/issue`, {
+      body: { issues: [...keys] },
+      signal
+    });
+  }
   async edit(key, fields, signal) {
     await this.request("PUT", `${API}/issue/${key}`, {
       body: { fields },
@@ -680,6 +688,28 @@ function groupByColumn(issues, columns) {
     column: name,
     issues: buckets.get(name) ?? []
   }));
+}
+function boardColumns(columns) {
+  const order = [];
+  const statuses = /* @__PURE__ */ new Map();
+  for (const column of columns) {
+    if (!statuses.has(column.name)) {
+      order.push(column.name);
+      statuses.set(column.name, []);
+    }
+    const owned = statuses.get(column.name);
+    for (const statusId of column.statusIds)
+      if (!owned.includes(statusId)) owned.push(statusId);
+  }
+  return order.map((name) => ({ name, statusIds: statuses.get(name) }));
+}
+function boardColumnForStatus(columns, statusId) {
+  return columns.findIndex((column) => column.statusIds.includes(statusId));
+}
+function transitionForColumn(transitions, column) {
+  return transitions.find(
+    (transition) => !!transition.toId && column.statusIds.includes(transition.toId)
+  );
 }
 function groupByEpic(issues, epicTitles) {
   const groups = /* @__PURE__ */ new Map();
@@ -1916,6 +1946,9 @@ function workspaceCommands(a) {
     command("browser", "o", a.openInBrowser),
     command("copy", "y", a.copyKey),
     command("transition", "m", () => void a.runAction("transition")),
+    command("move.left", "shift+left", () => void a.moveToColumn(-1)),
+    command("move.right", "shift+right", () => void a.moveToColumn(1)),
+    command("backlog", "b", () => void a.sendToBacklog()),
     command("assign", "i", () => void a.runAction("assign")),
     command("unassign", "u", () => void a.runAction("unassign")),
     command("sprint", "s", () => void a.runAction("sprint")),
@@ -2067,9 +2100,10 @@ function screenHint(width, focus, ticket, board, composer) {
     return "\u21B5Open Tab EscBack";
   }
   if (composer) return "Enter newline \xB7 Tab actions \xB7 Escape retains draft";
-  if (ticket) return focus === "relationships" ? "\u2191/\u2193 targets \xB7 Enter follow \xB7 Tab focus \xB7 Esc Back" : "\u2191/\u2193 scroll \xB7 Tab targets/actions \xB7 Esc Back \xB7 r Refresh";
+  if (ticket) return focus === "relationships" ? "\u2191/\u2193 targets \xB7 Enter follow \xB7 m status \xB7 b backlog \xB7 Tab focus \xB7 Esc Back" : "\u2191/\u2193 scroll \xB7 m status \xB7 b backlog \xB7 Tab focus \xB7 Esc Back \xB7 r Refresh";
   if (focus === "tabs") return "Tabs \u2190/\u2192 \xB7 \u2193/Enter content \xB7 Tab focus \xB7 Esc Back";
-  return `${board ? "\u2190/\u2192 columns \xB7 " : "List \xB7 "}\u2191/\u2193 move \xB7 Enter open \xB7 Tab focus \xB7 Esc Back \xB7 r Refresh`;
+  if (board) return "\u2190/\u2192 col \xB7 \u21E7\u2190/\u2192 move card \xB7 m status \xB7 b backlog \xB7 \u2191/\u2193 move \xB7 Enter open \xB7 Tab focus \xB7 Esc Back";
+  return "List \xB7 \u2191/\u2193 move \xB7 Enter open \xB7 Tab focus \xB7 Esc Back \xB7 r Refresh";
 }
 function SessionReturnControl(props) {
   return (() => {
@@ -2262,6 +2296,105 @@ async function runTicketAction(a, kind) {
       duration: 8e3
     });
   }
+}
+async function moveToColumn(a, delta) {
+  const issue = a.issue();
+  if (!issue) {
+    a.context.ui.toast.show({
+      message: "No issue selected",
+      variant: "warning"
+    });
+    return;
+  }
+  const config = a.board();
+  const columns = config ? boardColumns(config.columns) : [];
+  if (columns.length < 2) {
+    a.context.ui.toast.show({
+      message: "No board columns to move between",
+      variant: "warning"
+    });
+    return;
+  }
+  const current = boardColumnForStatus(columns, issue.statusId);
+  if (current < 0) {
+    a.context.ui.toast.show({
+      message: `${issue.key} is not on a board column`,
+      variant: "warning"
+    });
+    return;
+  }
+  const target = current + delta;
+  if (target < 0 || target >= columns.length) {
+    a.context.ui.toast.show({
+      message: `No ${delta < 0 ? "earlier" : "later"} column`,
+      variant: "warning"
+    });
+    return;
+  }
+  const column = columns[target];
+  const c = a.client();
+  try {
+    const match = transitionForColumn(
+      (await c.transitions(issue.key)).map((transition) => ({
+        id: transition.id,
+        name: transition.name,
+        toId: transition.to?.id
+      })),
+      column
+    );
+    if (!match) {
+      a.context.ui.toast.show({
+        message: `No transition from ${issue.status} to ${column.name}`,
+        variant: "warning"
+      });
+      return;
+    }
+    const confirmed = await a.context.ui.dialog.confirm({
+      title: `Move ${issue.key} to ${column.name}?`,
+      message: `${issue.summary}
+${issue.status} \u2192 ${column.name} (${match.name})`,
+      label: { confirm: "Move", cancel: "Cancel" }
+    });
+    if (!confirmed) return;
+    await c.transition(issue.key, match.id);
+    a.context.ui.toast.show({
+      message: `${issue.key} \u2192 ${column.name}`,
+      variant: "success"
+    });
+  } catch (e) {
+    a.context.ui.toast.show({
+      title: "Jira",
+      message: a.message(e),
+      variant: "error",
+      duration: 8e3
+    });
+  }
+  await a.refresh();
+}
+async function sendToBacklog(a) {
+  const issue = a.issue();
+  if (!issue) {
+    a.context.ui.toast.show({
+      message: "No issue selected",
+      variant: "warning"
+    });
+    return;
+  }
+  try {
+    await a.client().sendToBacklog([issue.key]);
+    a.context.ui.toast.show({
+      message: `${issue.key} sent to backlog`,
+      variant: "success"
+    });
+  } catch (e) {
+    a.context.ui.toast.show({
+      title: "Jira",
+      message: a.message(e),
+      variant: "error",
+      duration: 8e3
+    });
+  }
+  await a.refresh();
 }
 
 // lib/ticket.ts
@@ -2869,10 +3002,9 @@ var tui_default = {
       if (url.hostname === cfg().site && internal) void openIssue(internal[1]);
       else execFile("open", [safe], () => void 0);
     }
-    async function runAction(kind) {
+    const actionOptions = () => {
       const target = ticket();
-      if (target?.site && target.site !== cfg().site) return;
-      await runTicketAction({
+      return {
         context,
         issue: currentIssue,
         client: () => target?.site ? new JiraClient(target.site) : client(),
@@ -2889,7 +3021,29 @@ var tui_default = {
             refresh: true
           });
         }
-      }, kind);
+      };
+    };
+    async function runAction(kind) {
+      const target = ticket();
+      if (target?.site && target.site !== cfg().site) return;
+      await runTicketAction(actionOptions(), kind);
+    }
+    async function moveColumn(delta) {
+      if (!boardView()) {
+        context.ui.toast.show({
+          message: "Switch to My Work or Sprint to move cards between columns",
+          variant: "warning"
+        });
+        return;
+      }
+      const target = ticket();
+      if (target?.site && target.site !== cfg().site) return;
+      await moveToColumn(actionOptions(), delta);
+    }
+    async function archiveToBacklog() {
+      const target = ticket();
+      if (target?.site && target.site !== cfg().site) return;
+      await sendToBacklog(actionOptions());
     }
     const openInBrowser = () => {
       const url = safeUrl(currentIssue()?.url);
@@ -3025,6 +3179,8 @@ var tui_default = {
           openInBrowser,
           copyKey,
           runAction,
+          moveToColumn: moveColumn,
+          sendToBacklog: archiveToBacklog,
           pickAssignee,
           pickType,
           search,

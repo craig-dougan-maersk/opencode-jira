@@ -51,6 +51,13 @@ copies the key. `a`, `t`, `/` filter assignee, type and text; `r` refreshes.
 
 `m` changes status, `i` assigns to you, `u` unassigns, and `s` adds to the active
 sprint. These actions make real Jira writes when you invoke them.
+
+On the My Work and Sprint boards, `left`/`right` move between columns.
+`shift+left` and `shift+right` move the selected card to the previous or next
+column and set its status to one that column owns; a confirmation names the
+target column before anything is written. `b` sends the selected issue to the
+backlog. Both are real writes too.
+
 `c` opens a multiline comment. Enter and pasted newlines edit only; an explicit
 Submit click or Enter with Submit focused sends. Cancel/Escape retains drafts
 in memory; pending submission locks exit and duplicate sends. Comment POSTs

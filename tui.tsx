@@ -38,7 +38,7 @@ import { childCounts, groupRows, graphRows } from "./lib/workspace-data.ts";
 import { workspaceCommands, ASSIGNEE_LABELS } from "./ui/keymap.ts";
 import { ViewTabs, screenHint, SessionReturnControl } from "./ui/chrome.tsx";
 import { filters } from "./ui/filters.ts";
-import { runTicketAction } from "./ui/actions.ts";
+import { runTicketAction, moveToColumn, sendToBacklog } from "./ui/actions.ts";
 import { readTicket } from "./lib/ticket.ts";
 import { registerEntry } from "./ui/entry.ts";
 function message(error: unknown): string {
@@ -645,35 +645,58 @@ export default {
       else execFile("open", [safe], () => undefined);
     }
 
+    /** Shared action context. Captures the current ticket so a late refresh
+     *  targets the same issue and site that the action wrote to. */
+    const actionOptions = () => {
+      const target = ticket();
+      return {
+        context,
+        issue: currentIssue,
+        client: () => (target?.site ? new JiraClient(target.site) : client()),
+        accountId,
+        setAccountId,
+        board,
+        sprint,
+        message,
+        refresh: async () => {
+          cache.clear();
+          if (
+            target &&
+            ticket()?.issue.key === target.issue.key &&
+            ticket()?.site === target.site
+          )
+            await openIssue(target.issue.key, true);
+          else if (ticket()) return;
+          else await load({ refresh: true });
+        },
+      };
+    };
+
     async function runAction(
       kind: "transition" | "assign" | "unassign" | "sprint",
     ) {
       const target = ticket();
       if (target?.site && target.site !== cfg().site) return;
-      await runTicketAction(
-        {
-          context,
-          issue: currentIssue,
-          client: () => (target?.site ? new JiraClient(target.site) : client()),
-          accountId,
-          setAccountId,
-          board,
-          sprint,
-          message,
-          refresh: async () => {
-            cache.clear();
-            if (
-              target &&
-              ticket()?.issue.key === target.issue.key &&
-              ticket()?.site === target.site
-            )
-              await openIssue(target.issue.key, true);
-            else if (ticket()) return;
-            else await load({ refresh: true });
-          },
-        },
-        kind,
-      );
+      await runTicketAction(actionOptions(), kind);
+    }
+
+    async function moveColumn(delta: number) {
+      if (!boardView()) {
+        context.ui.toast.show({
+          message: "Switch to My Work or Sprint to move cards between columns",
+          variant: "warning",
+        });
+        return;
+      }
+      const target = ticket();
+      if (target?.site && target.site !== cfg().site) return;
+      await moveToColumn(actionOptions(), delta);
+    }
+
+    async function archiveToBacklog() {
+      const target = ticket();
+      if (target?.site && target.site !== cfg().site) return;
+      await sendToBacklog(actionOptions());
     }
 
     const openInBrowser = () => {
@@ -810,6 +833,8 @@ export default {
           openInBrowser,
           copyKey,
           runAction,
+          moveToColumn: moveColumn,
+          sendToBacklog: archiveToBacklog,
           pickAssignee,
           pickType,
           search,
