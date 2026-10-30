@@ -9,6 +9,8 @@ export interface WorkspaceActions {
   runAction(
     kind: "transition" | "assign" | "unassign" | "sprint",
   ): Promise<void>;
+  moveToColumn(delta: number): Promise<void>;
+  sendToBacklog(): Promise<void>;
   pickAssignee(): Promise<void>;
   pickType(): Promise<void>;
   search(): Promise<void>;
@@ -38,6 +40,9 @@ export function workspaceCommands(a: WorkspaceActions) {
     command("browser", "o", a.openInBrowser),
     command("copy", "y", a.copyKey),
     command("transition", "m", () => void a.runAction("transition")),
+    command("move.left", "shift+left", () => void a.moveToColumn(-1)),
+    command("move.right", "shift+right", () => void a.moveToColumn(1)),
+    command("backlog", "b", () => void a.sendToBacklog()),
     command("assign", "i", () => void a.runAction("assign")),
     command("unassign", "u", () => void a.runAction("unassign")),
     command("sprint", "s", () => void a.runAction("sprint")),

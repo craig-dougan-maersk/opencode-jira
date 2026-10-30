@@ -367,7 +367,11 @@ export class JiraClient {
 
   async transitions(key: string, signal?: AbortSignal) {
     const data = await this.request<{
-      transitions?: { id: string; name: string; to?: { name?: string } }[];
+      transitions?: {
+        id: string;
+        name: string;
+        to?: { name?: string; id?: string };
+      }[];
     }>("GET", `${API}/issue/${key}/transitions`, { signal });
     return data.transitions ?? [];
   }
@@ -392,6 +396,15 @@ export class JiraClient {
     signal?: AbortSignal,
   ) {
     await this.request("POST", `${AGILE}/sprint/${sprintId}/issue`, {
+      body: { issues: [...keys] },
+      signal,
+    });
+  }
+
+  /** Move issues to the board backlog. Idempotent: already-backlog issues are kept. */
+  async sendToBacklog(keys: readonly string[], signal?: AbortSignal) {
+    if (keys.length === 0) return;
+    await this.request("POST", `${AGILE}/backlog/issue`, {
       body: { issues: [...keys] },
       signal,
     });

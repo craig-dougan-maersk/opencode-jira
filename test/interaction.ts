@@ -17,6 +17,8 @@ import {
   fixtures,
   issueReads,
   setFailKey,
+  transitionWrites,
+  backlogWrites,
 } from "./interaction-jira.ts";
 
 type Command = {
@@ -171,6 +173,57 @@ test("RV-08 confirmed mutation refreshes detail without adding history", async (
     assert.doesNotMatch(h.text(), /TEST-1 · Back/);
   } finally {
     fixtures.changed = false;
+    h.dispose();
+  }
+});
+test("KB-01 shift+right confirms and moves the board card to the next column", async () => {
+  const h = harness();
+  transitionWrites.length = 0;
+  try {
+    await h.open();
+    assert.match(h.text(), /\[My Work\]/);
+    h.press("shift+right");
+    await flush();
+    assert.equal(h.mode(), "modal");
+    h.answer(true);
+    await flush();
+    assert.deepEqual(transitionWrites, [{ key: "TEST-1", id: "2" }]);
+  } finally {
+    transitionWrites.length = 0;
+    h.dispose();
+  }
+});
+test("KB-02 cancelled and boundary column moves never write", async () => {
+  const h = harness();
+  transitionWrites.length = 0;
+  try {
+    await h.open();
+    h.press("shift+right");
+    await flush();
+    assert.equal(h.mode(), "modal");
+    h.answer(false);
+    await flush();
+    assert.deepEqual(transitionWrites, []);
+    h.press("shift+left");
+    await flush();
+    assert.equal(h.mode(), "base");
+    assert.deepEqual(transitionWrites, []);
+  } finally {
+    transitionWrites.length = 0;
+    h.dispose();
+  }
+});
+test("KB-03 b sends the selected issue to the backlog without a dialog", async () => {
+  const h = harness();
+  backlogWrites.length = 0;
+  try {
+    await h.open();
+    h.press("b");
+    await flush();
+    assert.equal(h.mode(), "base");
+    assert.deepEqual(backlogWrites, ["TEST-1"]);
+  } finally {
+    backlogWrites.length = 0;
     h.dispose();
   }
 });

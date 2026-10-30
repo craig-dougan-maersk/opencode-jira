@@ -3,6 +3,11 @@ import { test } from "node:test";
 import { projectAdf, commentAdf, safeUrl, terminalText } from "../lib/adf.ts";
 import { columnWindow, pushScreen, popScreen } from "../lib/navigation.ts";
 import { groupByColumn } from "../lib/model.ts";
+import {
+  boardColumns,
+  boardColumnForStatus,
+  transitionForColumn,
+} from "../lib/model.ts";
 
 test("ADF preserves long code, lists, tables, links and strips terminal controls", () => {
   const blocks = projectAdf({
@@ -98,6 +103,41 @@ test("empty and arbitrary unmapped columns are retained", () => {
   assert.deepEqual(
     groupByColumn([], [{ name: "Custom", statusIds: ["123"] }]),
     [{ column: "Custom", issues: [] }],
+  );
+});
+test("displayed board columns merge repeats and keep board order", () => {
+  const columns = boardColumns([
+    { name: "In Review", statusIds: ["10"] },
+    { name: "Done", statusIds: ["30"] },
+    { name: "In Review", statusIds: ["11", "10"] },
+  ]);
+  assert.deepEqual(columns, [
+    { name: "In Review", statusIds: ["10", "11"] },
+    { name: "Done", statusIds: ["30"] },
+  ]);
+  assert.equal(boardColumnForStatus(columns, "11"), 0);
+  assert.equal(boardColumnForStatus(columns, "30"), 1);
+  assert.equal(boardColumnForStatus(columns, "99"), -1);
+});
+test("column transition picks only a transition reaching a status it owns", () => {
+  const column = { name: "Build", statusIds: ["2", "3"] };
+  assert.deepEqual(
+    transitionForColumn(
+      [
+        { id: "1", name: "Start", toId: "1" },
+        { id: "2", name: "Resolve", toId: "3" },
+      ],
+      column,
+    ),
+    { id: "2", name: "Resolve", toId: "3" },
+  );
+  assert.equal(
+    transitionForColumn([{ id: "1", name: "Start", toId: "1" }], column),
+    undefined,
+  );
+  assert.equal(
+    transitionForColumn([{ id: "1", name: "Unknown" }], column),
+    undefined,
   );
 });
 test("RV-03 malformed and hostile wide ADF is bounded before accumulation", () => {

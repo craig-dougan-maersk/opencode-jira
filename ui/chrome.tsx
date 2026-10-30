@@ -111,11 +111,13 @@ export function screenHint(
   if (composer) return "Enter newline · Tab actions · Escape retains draft";
   if (ticket)
     return focus === "relationships"
-      ? "↑/↓ targets · Enter follow · Tab focus · Esc Back"
-      : "↑/↓ scroll · Tab targets/actions · Esc Back · r Refresh";
+      ? "↑/↓ targets · Enter follow · m status · b backlog · Tab focus · Esc Back"
+      : "↑/↓ scroll · m status · b backlog · Tab focus · Esc Back · r Refresh";
   if (focus === "tabs")
     return "Tabs ←/→ · ↓/Enter content · Tab focus · Esc Back";
-  return `${board ? "←/→ columns · " : "List · "}↑/↓ move · Enter open · Tab focus · Esc Back · r Refresh`;
+  if (board)
+    return "←/→ col · ⇧←/→ move card · m status · b backlog · ↑/↓ move · Enter open · Tab focus · Esc Back";
+  return "List · ↑/↓ move · Enter open · Tab focus · Esc Back · r Refresh";
 }
 export function SessionReturnControl(props: {
   context: any;
