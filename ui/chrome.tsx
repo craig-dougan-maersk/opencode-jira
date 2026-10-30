@@ -116,7 +116,7 @@ export function screenHint(
   if (focus === "tabs")
     return "Tabs ←/→ · ↓/Enter content · Tab focus · Esc Back";
   if (board)
-    return "←/→ col · ⇧←/→ move card · m status · b backlog · ↑/↓ move · Enter open · Tab focus · Esc Back";
+    return "←/→ col · ⇧←/→ or drag card · m status · b backlog · Enter open · Esc Back";
   return "List · ↑/↓ move · Enter open · Tab focus · Esc Back · r Refresh";
 }
 export function SessionReturnControl(props: {

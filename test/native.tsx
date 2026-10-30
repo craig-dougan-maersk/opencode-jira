@@ -232,6 +232,61 @@ for (const [width, height] of [
     }
   });
 }
+test("native dragging a card to another column drops on that column, never its own", async () => {
+  const dropped: { key: string; column: number }[] = [];
+  const rows = [
+    { kind: "group", label: "Open", count: 1 },
+    { kind: "issue", issue: { ...issue, key: "FIXTURE-1", statusId: "1" } },
+    { kind: "group", label: "Blocked", count: 0 },
+    { kind: "group", label: "Done", count: 0 },
+  ];
+  const setup = await testRender(
+    () => (
+      <box width="100%" height="100%">
+        <WorkspaceContent
+          context={{ theme }}
+          rows={rows}
+          selected={1}
+          board
+          column={0}
+          width={96}
+          enabled={() => true}
+          open={() => {}}
+          openKey={() => {}}
+          dropCard={(droppedIssue: any, column: number) =>
+            dropped.push({ key: droppedIssue.key, column })
+          }
+          register={() => {}}
+        />
+      </box>
+    ),
+    { width: 96, height: 24, useMouse: true, enableMouseMovement: true },
+  );
+  try {
+    await setup.flush();
+    const card = setup.renderer.root.findDescendantById("card-1") as any;
+    const home = setup.renderer.root.findDescendantById("column-0") as any;
+    const target = setup.renderer.root.findDescendantById("column-2") as any;
+    assert.ok(card && home && target, "board geometry missing");
+    await setup.mockMouse.drag(card.x + 2, card.y + 1, home.x + 3, home.y + 5);
+    await setup.flush();
+    assert.deepEqual(
+      dropped,
+      [],
+      "a drop onto the card's own column must not move it",
+    );
+    await setup.mockMouse.drag(
+      card.x + 2,
+      card.y + 1,
+      target.x + 3,
+      target.y + 5,
+    );
+    await setup.flush();
+    assert.deepEqual(dropped, [{ key: "FIXTURE-1", column: 2 }]);
+  } finally {
+    await setup.dispose();
+  }
+});
 test("native textarea Enter, paste and Meta/Ctrl Enter never write; explicit Submit writes once", async () => {
   let factory: any;
   let mode = "base",

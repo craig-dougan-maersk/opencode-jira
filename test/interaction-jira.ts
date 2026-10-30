@@ -37,6 +37,14 @@ export let failKey = "";
 export const setFailKey = (key: string) => {
   failKey = key;
 };
+export let boardColumnsOverride: any[] | undefined;
+export const setBoardColumns = (value?: any[]) => {
+  boardColumnsOverride = value;
+};
+export let transitionsOverride: any[] | undefined;
+export const setTransitions = (value?: any[]) => {
+  transitionsOverride = value;
+};
 export const delayedReads = new Map<string, () => void>();
 export let delayKey = "";
 export const setDelayKey = (value: string) => {
@@ -69,7 +77,7 @@ export class JiraClient {
       id: 1,
       name: "Fixture Board",
       filterJql: "",
-      columns: [
+      columns: boardColumnsOverride ?? [
         { name: "Open", statusIds: ["1"] },
         { name: "Build", statusIds: ["2"] },
       ],
@@ -106,7 +114,11 @@ export class JiraClient {
     return [{ id: 1, name: "Fixture Board", type: "scrum" }];
   }
   async transitions() {
-    return [{ id: "2", name: "Resolved", to: { id: "2", name: "Build" } }];
+    return (
+      transitionsOverride ?? [
+        { id: "2", name: "Resolved", to: { id: "2", name: "Build" } },
+      ]
+    );
   }
   async transition(key: string, id: string) {
     transitionWrites.push({ key, id });

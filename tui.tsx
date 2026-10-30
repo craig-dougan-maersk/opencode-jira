@@ -38,7 +38,12 @@ import { childCounts, groupRows, graphRows } from "./lib/workspace-data.ts";
 import { workspaceCommands, ASSIGNEE_LABELS } from "./ui/keymap.ts";
 import { ViewTabs, screenHint, SessionReturnControl } from "./ui/chrome.tsx";
 import { filters } from "./ui/filters.ts";
-import { runTicketAction, moveToColumn, sendToBacklog } from "./ui/actions.ts";
+import {
+  runTicketAction,
+  moveToColumn,
+  dropIntoColumn,
+  sendToBacklog,
+} from "./ui/actions.ts";
 import { readTicket } from "./lib/ticket.ts";
 import { registerEntry } from "./ui/entry.ts";
 function message(error: unknown): string {
@@ -699,6 +704,12 @@ export default {
       await sendToBacklog(actionOptions());
     }
 
+    async function dropCard(issue: Issue, column: number) {
+      const target = ticket();
+      if (target?.site && target.site !== cfg().site) return;
+      await dropIntoColumn(actionOptions(), issue, column);
+    }
+
     const openInBrowser = () => {
       const url = safeUrl(currentIssue()?.url);
       if (url) execFile("open", [url], () => undefined);
@@ -919,6 +930,7 @@ export default {
               setFocus("content");
               activate();
             }}
+            dropCard={(issue, column) => void dropCard(issue, column)}
             relationship={(index) => {
               setSelected(index);
               setFocus("relationships");
