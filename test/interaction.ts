@@ -19,6 +19,8 @@ import {
   setFailKey,
   transitionWrites,
   backlogWrites,
+  setBoardColumns,
+  setTransitions,
 } from "./interaction-jira.ts";
 
 type Command = {
@@ -224,6 +226,98 @@ test("KB-03 b sends the selected issue to the backlog without a dialog", async (
     assert.deepEqual(backlogWrites, ["TEST-1"]);
   } finally {
     backlogWrites.length = 0;
+    h.dispose();
+  }
+});
+test("KB-04 dropping a card on the next column confirms and moves it", async () => {
+  const h = harness();
+  transitionWrites.length = 0;
+  try {
+    await h.open();
+    h.drag("card-1", "column-1");
+    await flush();
+    assert.equal(h.mode(), "modal");
+    h.answer(true);
+    await flush();
+    assert.deepEqual(transitionWrites, [{ key: "TEST-1", id: "2" }]);
+  } finally {
+    transitionWrites.length = 0;
+    h.dispose();
+  }
+});
+test("KB-05 dropping on a non-adjacent column skips the one between", async () => {
+  const h = harness(undefined, { width: 96, height: 30 });
+  transitionWrites.length = 0;
+  setBoardColumns([
+    { name: "Open", statusIds: ["1"] },
+    { name: "Blocked", statusIds: ["9"] },
+    { name: "Build", statusIds: ["2"] },
+  ]);
+  setTransitions([
+    { id: "9", name: "Blocked", to: { id: "9", name: "Blocked" } },
+    { id: "2", name: "Resolved", to: { id: "2", name: "Build" } },
+  ]);
+  try {
+    await h.open();
+    assert.ok(h.node("column-2"), "third column is not rendered");
+    h.drag("card-1", "column-2");
+    await flush();
+    assert.equal(h.mode(), "modal");
+    h.answer(true);
+    await flush();
+    assert.deepEqual(transitionWrites, [{ key: "TEST-1", id: "2" }]);
+  } finally {
+    setBoardColumns();
+    setTransitions();
+    transitionWrites.length = 0;
+    h.dispose();
+  }
+});
+test("KB-06 dropping a card back on its own column never opens a dialog or writes", async () => {
+  const h = harness();
+  transitionWrites.length = 0;
+  try {
+    await h.open();
+    h.drag("card-1", "column-0");
+    await flush();
+    assert.equal(h.mode(), "base");
+    assert.deepEqual(transitionWrites, []);
+  } finally {
+    transitionWrites.length = 0;
+    h.dispose();
+  }
+});
+test("KB-07 a cancelled drop writes nothing", async () => {
+  const h = harness();
+  transitionWrites.length = 0;
+  try {
+    await h.open();
+    h.drag("card-1", "column-1");
+    await flush();
+    assert.equal(h.mode(), "modal");
+    h.answer(false);
+    await flush();
+    assert.deepEqual(transitionWrites, []);
+  } finally {
+    transitionWrites.length = 0;
+    h.dispose();
+  }
+});
+test("KB-08 a column the workflow cannot reach directly refuses the drop", async () => {
+  const h = harness();
+  transitionWrites.length = 0;
+  setTransitions([
+    { id: "9", name: "Blocked", to: { id: "9", name: "Blocked" } },
+  ]);
+  try {
+    await h.open();
+    h.drag("card-1", "column-1");
+    await flush();
+    assert.equal(h.mode(), "base");
+    assert.deepEqual(transitionWrites, []);
+  } finally {
+    setTransitions();
+    transitionWrites.length = 0;
     h.dispose();
   }
 });
@@ -443,7 +537,7 @@ globalThis.fetch = async () => {
   throw new Error("Network forbidden in interaction fixtures");
 };
 
-function harness(origin?: any) {
+function harness(origin?: any, viewport?: { width: number; height: number }) {
   const layers = new Set<() => Layer>();
   const [mode, setMode] = createSignal("base");
   const [signalRoute, setSignalRoute] = createSignal({
@@ -485,6 +579,7 @@ function harness(origin?: any) {
     resolve?.(value);
   };
   const context = {
+    renderer: viewport,
     storage: {
       store: (_name: string, options: any) => [
         settings,
@@ -584,6 +679,26 @@ function harness(origin?: any) {
       preventDefault() {},
     });
   };
+  const node = (id: string) => nodes().find((entry) => entry.props.id === id);
+  const drag = (cardId: string, columnId: string) => {
+    const card = node(cardId);
+    assert.ok(card, `missing card ${cardId}`);
+    const column = node(columnId);
+    assert.ok(column, `missing column ${columnId}`);
+    assert.equal(
+      typeof card.props.onMouseDrag,
+      "function",
+      `${cardId} is not draggable`,
+    );
+    assert.equal(
+      typeof column.props.onMouseDrop,
+      "function",
+      `${columnId} is not a drop target`,
+    );
+    (card.props.onMouseDrag as Function)();
+    (card.props.onMouseDragEnd as Function)();
+    (column.props.onMouseDrop as Function)();
+  };
   const open = async (key?: string) => {
     await commands()
       .find((command) => command.id === "jira.open")!
@@ -605,6 +720,8 @@ function harness(origin?: any) {
     open,
     press,
     click,
+    drag,
+    node,
     text,
     commands,
     dispose,

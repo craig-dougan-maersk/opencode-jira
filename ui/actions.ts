@@ -4,6 +4,7 @@ import {
   boardColumns,
   boardColumnForStatus,
   transitionForColumn,
+  type BoardColumn,
 } from "../lib/model.ts";
 interface Options {
   context: any;
@@ -107,6 +108,12 @@ export async function runTicketAction(
   }
 }
 
+/** The board's columns, or an empty list when no board definition is loaded. */
+function columnsFor(a: Options) {
+  const config = a.board();
+  return config ? boardColumns(config.columns) : [];
+}
+
 /**
  * Move the selected issue to an adjacent board column, transitioning it to a
  * status the column owns. Confirms before the write; a column with no direct
@@ -121,8 +128,7 @@ export async function moveToColumn(a: Options, delta: number) {
     });
     return;
   }
-  const config = a.board();
-  const columns = config ? boardColumns(config.columns) : [];
+  const columns = columnsFor(a);
   if (columns.length < 2) {
     a.context.ui.toast.show({
       message: "No board columns to move between",
@@ -146,7 +152,35 @@ export async function moveToColumn(a: Options, delta: number) {
     });
     return;
   }
-  const column = columns[target];
+  await applyColumnMove(a, issue, columns[target]);
+}
+
+/**
+ * Move a specific issue into the board column at an absolute index, as a drag
+ * and drop targets a column directly rather than a neighbour. A drop onto the
+ * issue's own column is a no-op; the target may be any column, not only an
+ * adjacent one.
+ */
+export async function dropIntoColumn(
+  a: Options,
+  issue: Issue,
+  columnIndex: number,
+) {
+  const columns = columnsFor(a);
+  if (columns.length < 2) {
+    a.context.ui.toast.show({
+      message: "No board columns to move between",
+      variant: "warning",
+    });
+    return;
+  }
+  if (columnIndex < 0 || columnIndex >= columns.length) return;
+  if (boardColumnForStatus(columns, issue.statusId) === columnIndex) return;
+  await applyColumnMove(a, issue, columns[columnIndex]);
+}
+
+/** Transition an issue to a status the target column owns, after confirming. */
+async function applyColumnMove(a: Options, issue: Issue, column: BoardColumn) {
   const c = a.client();
   try {
     const match = transitionForColumn(

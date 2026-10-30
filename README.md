@@ -55,7 +55,10 @@ sprint. These actions make real Jira writes when you invoke them.
 On the My Work and Sprint boards, `left`/`right` move between columns.
 `shift+left` and `shift+right` move the selected card to the previous or next
 column and set its status to one that column owns; a confirmation names the
-target column before anything is written. `b` sends the selected issue to the
+target column before anything is written. A card can also be dragged with the
+mouse onto any column, confirmed the same way: the drop names the column under
+the pointer, so it may skip columns in between, subject to the project's
+workflow allowing a direct transition. `b` sends the selected issue to the
 backlog. Both are real writes too.
 
 `c` opens a multiline comment. Enter and pasted newlines edit only; an explicit

@@ -1,6 +1,7 @@
 import { Show } from "solid-js";
 import { WorkspaceContent, TicketWindow } from "./content.tsx";
 import { CommentComposer, type ComposerState } from "./comment.tsx";
+import type { Issue } from "../lib/types.ts";
 import {
   color,
   leftClick,
@@ -26,6 +27,7 @@ interface Props {
   register: (id: string, ref: ScrollHandle) => void;
   openKey: (key: string) => void;
   open: (index: number) => void;
+  dropCard?: (issue: Issue, column: number) => void;
   relationship: (index: number) => void;
   back: () => void;
   comment: () => void;
@@ -57,6 +59,7 @@ export function WorkspaceViewport(props: Props) {
           register={props.register}
           openKey={props.openKey}
           open={props.open}
+          dropCard={props.dropCard}
         />
       </Show>
       <Show when={props.detailsKey && !props.ticket}>

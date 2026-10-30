@@ -909,6 +909,12 @@ function WorkspaceContent(props) {
   const visible = createMemo(() => groups().slice(window().start, window().start + window().count));
   const [height, setHeight] = createSignal(props.context.renderer?.height ?? 24);
   const focused = createMemo(() => props.rows[props.selected]);
+  const [dragging, setDragging] = createSignal(null);
+  const [dropTarget, setDropTarget] = createSignal(null);
+  const clearDrag = () => {
+    setDragging(null);
+    setDropTarget(null);
+  };
   return _$createComponent(Show, {
     get when() {
       return props.board;
@@ -1004,6 +1010,7 @@ function WorkspaceContent(props) {
               },
               children: (group, ordinal) => {
                 const absolute = () => window().start + ordinal();
+                const isTarget = () => dropTarget() === absolute() && dragging()?.column !== absolute();
                 let scroll;
                 createEffect(() => {
                   const selected = props.selected;
@@ -1017,6 +1024,13 @@ function WorkspaceContent(props) {
                   _$setProp(_el$13, "border", true);
                   _$setProp(_el$13, "flexDirection", "column");
                   _$setProp(_el$13, "flexShrink", 0);
+                  _$setProp(_el$13, "onMouseOver", () => dragging() && setDropTarget(absolute()));
+                  _$setProp(_el$13, "onMouseOut", () => setDropTarget((value) => value === absolute() ? null : value));
+                  _$setProp(_el$13, "onMouseDrop", () => {
+                    const dragged = dragging();
+                    if (dragged && dragged.column !== absolute() && props.enabled()) props.dropCard?.(dragged.issue, absolute());
+                    clearDrag();
+                  });
                   _$setProp(_el$14, "selectable", false);
                   _$setProp(_el$14, "height", 1);
                   _$setProp(_el$14, "flexShrink", 0);
@@ -1060,6 +1074,14 @@ function WorkspaceContent(props) {
                           _$setProp(_el$19, "border", true);
                           _$setProp(_el$19, "flexDirection", "column");
                           _$setProp(_el$19, "flexShrink", 0);
+                          _$setProp(_el$19, "onMouseDrag", () => {
+                            if (dragging()?.issue.key === row.issue.key) return;
+                            setDragging({
+                              issue: row.issue,
+                              column: absolute()
+                            });
+                          });
+                          _$setProp(_el$19, "onMouseDragEnd", () => queueMicrotask(clearDrag));
                           _$setProp(_el$20, "selectable", false);
                           _$insert(_el$20, () => `${index === props.selected ? "\u25B8 " : ""}${terminalText(row.issue.key)} \xB7 ${terminalText(row.issue.type)}`);
                           _$setProp(_el$21, "height", 2);
@@ -1067,15 +1089,15 @@ function WorkspaceContent(props) {
                           _$insert(_el$21, () => terminalText(row.issue.summary));
                           _$insert(_el$22, () => `${terminalText(row.issue.status)} \xB7 ${categoryLabel(row.issue.statusCategory)} \xB7 ${terminalText(row.issue.assignee ?? "Unassigned")}${row.issue.points === null ? "" : ` \xB7 ${row.issue.points}sp`}`);
                           _$effect((_p$) => {
-                            var _v$10 = index === props.selected ? "double" : "single", _v$11 = color(props.context, statusTone(row.issue)), _v$12 = leftClick(() => {
+                            var _v$11 = index === props.selected ? "double" : "single", _v$12 = color(props.context, statusTone(row.issue)), _v$13 = leftClick(() => {
                               if (props.enabled()) props.open(index);
-                            }), _v$13 = color(props.context, "base"), _v$14 = color(props.context, "base"), _v$15 = color(props.context, "base");
-                            _v$10 !== _p$.e && (_p$.e = _$setProp(_el$19, "borderStyle", _v$10, _p$.e));
-                            _v$11 !== _p$.t && (_p$.t = _$setProp(_el$19, "borderColor", _v$11, _p$.t));
-                            _v$12 !== _p$.a && (_p$.a = _$setProp(_el$19, "onMouseUp", _v$12, _p$.a));
-                            _v$13 !== _p$.o && (_p$.o = _$setProp(_el$20, "fg", _v$13, _p$.o));
-                            _v$14 !== _p$.i && (_p$.i = _$setProp(_el$21, "fg", _v$14, _p$.i));
-                            _v$15 !== _p$.n && (_p$.n = _$setProp(_el$22, "fg", _v$15, _p$.n));
+                            }), _v$14 = color(props.context, "base"), _v$15 = color(props.context, "base"), _v$16 = color(props.context, "base");
+                            _v$11 !== _p$.e && (_p$.e = _$setProp(_el$19, "borderStyle", _v$11, _p$.e));
+                            _v$12 !== _p$.t && (_p$.t = _$setProp(_el$19, "borderColor", _v$12, _p$.t));
+                            _v$13 !== _p$.a && (_p$.a = _$setProp(_el$19, "onMouseUp", _v$13, _p$.a));
+                            _v$14 !== _p$.o && (_p$.o = _$setProp(_el$20, "fg", _v$14, _p$.o));
+                            _v$15 !== _p$.i && (_p$.i = _$setProp(_el$21, "fg", _v$15, _p$.i));
+                            _v$16 !== _p$.n && (_p$.n = _$setProp(_el$22, "fg", _v$16, _p$.n));
                             return _p$;
                           }, {
                             e: void 0,
@@ -1091,19 +1113,21 @@ function WorkspaceContent(props) {
                     }
                   }));
                   _$effect((_p$) => {
-                    var _v$7 = absolute() === props.column ? "double" : "single", _v$8 = color(props.context, absolute() === props.column ? "accent" : "muted"), _v$9 = window().width, _v$0 = color(props.context, "base"), _v$1 = color(props.context, "base");
-                    _v$7 !== _p$.e && (_p$.e = _$setProp(_el$13, "borderStyle", _v$7, _p$.e));
-                    _v$8 !== _p$.t && (_p$.t = _$setProp(_el$13, "borderColor", _v$8, _p$.t));
-                    _v$9 !== _p$.a && (_p$.a = _$setProp(_el$13, "width", _v$9, _p$.a));
-                    _v$0 !== _p$.o && (_p$.o = _$setProp(_el$14, "fg", _v$0, _p$.o));
-                    _v$1 !== _p$.i && (_p$.i = _$setProp(_el$15, "fg", _v$1, _p$.i));
+                    var _v$7 = `column-${absolute()}`, _v$8 = isTarget() || absolute() === props.column ? "double" : "single", _v$9 = color(props.context, isTarget() ? "success" : absolute() === props.column ? "accent" : "muted"), _v$0 = window().width, _v$1 = color(props.context, "base"), _v$10 = color(props.context, "base");
+                    _v$7 !== _p$.e && (_p$.e = _$setProp(_el$13, "id", _v$7, _p$.e));
+                    _v$8 !== _p$.t && (_p$.t = _$setProp(_el$13, "borderStyle", _v$8, _p$.t));
+                    _v$9 !== _p$.a && (_p$.a = _$setProp(_el$13, "borderColor", _v$9, _p$.a));
+                    _v$0 !== _p$.o && (_p$.o = _$setProp(_el$13, "width", _v$0, _p$.o));
+                    _v$1 !== _p$.i && (_p$.i = _$setProp(_el$14, "fg", _v$1, _p$.i));
+                    _v$10 !== _p$.n && (_p$.n = _$setProp(_el$15, "fg", _v$10, _p$.n));
                     return _p$;
                   }, {
                     e: void 0,
                     t: void 0,
                     a: void 0,
                     o: void 0,
-                    i: void 0
+                    i: void 0,
+                    n: void 0
                   });
                   return _el$13;
                 })();
@@ -1301,13 +1325,13 @@ function TicketWindow(props) {
         var _el$36 = _$createElement("text");
         _$insert(_el$36, () => block.text);
         _$effect((_p$) => {
-          var _v$29 = block.kind === "code" ? "none" : "word", _v$30 = block.kind !== "link", _v$31 = color(props.context, block.kind === "link" ? "accent" : "base"), _v$32 = block.href ? leftClick(() => {
+          var _v$30 = block.kind === "code" ? "none" : "word", _v$31 = block.kind !== "link", _v$32 = color(props.context, block.kind === "link" ? "accent" : "base"), _v$33 = block.href ? leftClick(() => {
             if (props.enabled()) props.link(block.href);
           }) : void 0;
-          _v$29 !== _p$.e && (_p$.e = _$setProp(_el$36, "wrapMode", _v$29, _p$.e));
-          _v$30 !== _p$.t && (_p$.t = _$setProp(_el$36, "selectable", _v$30, _p$.t));
-          _v$31 !== _p$.a && (_p$.a = _$setProp(_el$36, "fg", _v$31, _p$.a));
-          _v$32 !== _p$.o && (_p$.o = _$setProp(_el$36, "onMouseUp", _v$32, _p$.o));
+          _v$30 !== _p$.e && (_p$.e = _$setProp(_el$36, "wrapMode", _v$30, _p$.e));
+          _v$31 !== _p$.t && (_p$.t = _$setProp(_el$36, "selectable", _v$31, _p$.t));
+          _v$32 !== _p$.a && (_p$.a = _$setProp(_el$36, "fg", _v$32, _p$.a));
+          _v$33 !== _p$.o && (_p$.o = _$setProp(_el$36, "onMouseUp", _v$33, _p$.o));
           return _p$;
         }, {
           e: void 0,
@@ -1337,12 +1361,12 @@ function TicketWindow(props) {
         _$setProp(_el$39, "selectable", false);
         _$insert(_el$39, () => `${props.selected === index() && props.focus === "relationships" ? "\u25B8 " : ""}${row.label}`);
         _$effect((_p$) => {
-          var _v$33 = `relationship-${index()}`, _v$34 = color(props.context, "accent"), _v$35 = leftClick(() => {
+          var _v$34 = `relationship-${index()}`, _v$35 = color(props.context, "accent"), _v$36 = leftClick(() => {
             if (props.enabled()) props.link(row.href);
           });
-          _v$33 !== _p$.e && (_p$.e = _$setProp(_el$39, "id", _v$33, _p$.e));
-          _v$34 !== _p$.t && (_p$.t = _$setProp(_el$39, "fg", _v$34, _p$.t));
-          _v$35 !== _p$.a && (_p$.a = _$setProp(_el$39, "onMouseUp", _v$35, _p$.a));
+          _v$34 !== _p$.e && (_p$.e = _$setProp(_el$39, "id", _v$34, _p$.e));
+          _v$35 !== _p$.t && (_p$.t = _$setProp(_el$39, "fg", _v$35, _p$.t));
+          _v$36 !== _p$.a && (_p$.a = _$setProp(_el$39, "onMouseUp", _v$36, _p$.a));
           return _p$;
         }, {
           e: void 0,
@@ -1355,12 +1379,12 @@ function TicketWindow(props) {
         _$setProp(_el$40, "selectable", false);
         _$insert(_el$40, () => `${props.focus === "relationships" && props.selected === index() ? "\u25B8 " : ""}${terminalText(row.issue.key)} \xB7 ${terminalText(row.note ?? row.issue.type)} \xB7 ${terminalText(row.issue.summary)}`);
         _$effect((_p$) => {
-          var _v$36 = `relationship-${index()}`, _v$37 = color(props.context, props.focus === "relationships" && props.selected === index() ? "accent" : "base"), _v$38 = leftClick(() => {
+          var _v$37 = `relationship-${index()}`, _v$38 = color(props.context, props.focus === "relationships" && props.selected === index() ? "accent" : "base"), _v$39 = leftClick(() => {
             if (props.enabled()) props.open(index());
           });
-          _v$36 !== _p$.e && (_p$.e = _$setProp(_el$40, "id", _v$36, _p$.e));
-          _v$37 !== _p$.t && (_p$.t = _$setProp(_el$40, "fg", _v$37, _p$.t));
-          _v$38 !== _p$.a && (_p$.a = _$setProp(_el$40, "onMouseUp", _v$38, _p$.a));
+          _v$37 !== _p$.e && (_p$.e = _$setProp(_el$40, "id", _v$37, _p$.e));
+          _v$38 !== _p$.t && (_p$.t = _$setProp(_el$40, "fg", _v$38, _p$.t));
+          _v$39 !== _p$.a && (_p$.a = _$setProp(_el$40, "onMouseUp", _v$39, _p$.a));
           return _p$;
         }, {
           e: void 0,
@@ -1379,24 +1403,24 @@ function TicketWindow(props) {
       return () => _c$2() ? `${props.focus === "comment" ? "\u25B8" : ""}c Comment` : _$memo(() => width() < 60)() ? "Add comment [c] \xB7 Esc Back" : `${props.focus === "comment" ? "\u25B8 " : ""}Add comment [c] \xB7 Tab focus \xB7 \u2191/\u2193 scroll \xB7 Esc Back`;
     })());
     _$effect((_p$) => {
-      var _v$16 = inset(), _v$17 = inset(), _v$18 = inset() ? 1 : 0, _v$19 = inset() ? 1 : 0, _v$20 = color(props.context, "accent"), _v$21 = props.context.theme?.background?.base, _v$22 = color(props.context, "accent"), _v$23 = leftClick(() => {
+      var _v$17 = inset(), _v$18 = inset(), _v$19 = inset() ? 1 : 0, _v$20 = inset() ? 1 : 0, _v$21 = color(props.context, "accent"), _v$22 = props.context.theme?.background?.base, _v$23 = color(props.context, "accent"), _v$24 = leftClick(() => {
         if (props.enabled()) props.back();
-      }), _v$24 = color(props.context, "base"), _v$25 = color(props.context, "base"), _v$26 = color(props.context, "accent"), _v$27 = color(props.context, "accent"), _v$28 = leftClick(() => {
+      }), _v$25 = color(props.context, "base"), _v$26 = color(props.context, "base"), _v$27 = color(props.context, "accent"), _v$28 = color(props.context, "accent"), _v$29 = leftClick(() => {
         if (props.enabled()) props.comment();
       });
-      _v$16 !== _p$.e && (_p$.e = _$setProp(_el$24, "paddingLeft", _v$16, _p$.e));
-      _v$17 !== _p$.t && (_p$.t = _$setProp(_el$24, "paddingRight", _v$17, _p$.t));
-      _v$18 !== _p$.a && (_p$.a = _$setProp(_el$24, "paddingTop", _v$18, _p$.a));
-      _v$19 !== _p$.o && (_p$.o = _$setProp(_el$24, "paddingBottom", _v$19, _p$.o));
-      _v$20 !== _p$.i && (_p$.i = _$setProp(_el$25, "borderColor", _v$20, _p$.i));
-      _v$21 !== _p$.n && (_p$.n = _$setProp(_el$25, "backgroundColor", _v$21, _p$.n));
-      _v$22 !== _p$.s && (_p$.s = _$setProp(_el$26, "fg", _v$22, _p$.s));
-      _v$23 !== _p$.h && (_p$.h = _$setProp(_el$26, "onMouseUp", _v$23, _p$.h));
-      _v$24 !== _p$.r && (_p$.r = _$setProp(_el$31, "fg", _v$24, _p$.r));
-      _v$25 !== _p$.d && (_p$.d = _$setProp(_el$32, "fg", _v$25, _p$.d));
-      _v$26 !== _p$.l && (_p$.l = _$setProp(_el$33, "fg", _v$26, _p$.l));
-      _v$27 !== _p$.u && (_p$.u = _$setProp(_el$35, "fg", _v$27, _p$.u));
-      _v$28 !== _p$.c && (_p$.c = _$setProp(_el$35, "onMouseUp", _v$28, _p$.c));
+      _v$17 !== _p$.e && (_p$.e = _$setProp(_el$24, "paddingLeft", _v$17, _p$.e));
+      _v$18 !== _p$.t && (_p$.t = _$setProp(_el$24, "paddingRight", _v$18, _p$.t));
+      _v$19 !== _p$.a && (_p$.a = _$setProp(_el$24, "paddingTop", _v$19, _p$.a));
+      _v$20 !== _p$.o && (_p$.o = _$setProp(_el$24, "paddingBottom", _v$20, _p$.o));
+      _v$21 !== _p$.i && (_p$.i = _$setProp(_el$25, "borderColor", _v$21, _p$.i));
+      _v$22 !== _p$.n && (_p$.n = _$setProp(_el$25, "backgroundColor", _v$22, _p$.n));
+      _v$23 !== _p$.s && (_p$.s = _$setProp(_el$26, "fg", _v$23, _p$.s));
+      _v$24 !== _p$.h && (_p$.h = _$setProp(_el$26, "onMouseUp", _v$24, _p$.h));
+      _v$25 !== _p$.r && (_p$.r = _$setProp(_el$31, "fg", _v$25, _p$.r));
+      _v$26 !== _p$.d && (_p$.d = _$setProp(_el$32, "fg", _v$26, _p$.d));
+      _v$27 !== _p$.l && (_p$.l = _$setProp(_el$33, "fg", _v$27, _p$.l));
+      _v$28 !== _p$.u && (_p$.u = _$setProp(_el$35, "fg", _v$28, _p$.u));
+      _v$29 !== _p$.c && (_p$.c = _$setProp(_el$35, "onMouseUp", _v$29, _p$.c));
       return _p$;
     }, {
       e: void 0,
@@ -1652,6 +1676,9 @@ function WorkspaceViewport(props) {
           },
           get open() {
             return props.open;
+          },
+          get dropCard() {
+            return props.dropCard;
           }
         });
       }
@@ -2102,7 +2129,7 @@ function screenHint(width, focus, ticket, board, composer) {
   if (composer) return "Enter newline \xB7 Tab actions \xB7 Escape retains draft";
   if (ticket) return focus === "relationships" ? "\u2191/\u2193 targets \xB7 Enter follow \xB7 m status \xB7 b backlog \xB7 Tab focus \xB7 Esc Back" : "\u2191/\u2193 scroll \xB7 m status \xB7 b backlog \xB7 Tab focus \xB7 Esc Back \xB7 r Refresh";
   if (focus === "tabs") return "Tabs \u2190/\u2192 \xB7 \u2193/Enter content \xB7 Tab focus \xB7 Esc Back";
-  if (board) return "\u2190/\u2192 col \xB7 \u21E7\u2190/\u2192 move card \xB7 m status \xB7 b backlog \xB7 \u2191/\u2193 move \xB7 Enter open \xB7 Tab focus \xB7 Esc Back";
+  if (board) return "\u2190/\u2192 col \xB7 \u21E7\u2190/\u2192 or drag card \xB7 m status \xB7 b backlog \xB7 Enter open \xB7 Esc Back";
   return "List \xB7 \u2191/\u2193 move \xB7 Enter open \xB7 Tab focus \xB7 Esc Back \xB7 r Refresh";
 }
 function SessionReturnControl(props) {
@@ -2297,6 +2324,10 @@ async function runTicketAction(a, kind) {
     });
   }
 }
+function columnsFor(a) {
+  const config = a.board();
+  return config ? boardColumns(config.columns) : [];
+}
 async function moveToColumn(a, delta) {
   const issue = a.issue();
   if (!issue) {
@@ -2306,8 +2337,7 @@ async function moveToColumn(a, delta) {
     });
     return;
   }
-  const config = a.board();
-  const columns = config ? boardColumns(config.columns) : [];
+  const columns = columnsFor(a);
   if (columns.length < 2) {
     a.context.ui.toast.show({
       message: "No board columns to move between",
@@ -2331,7 +2361,22 @@ async function moveToColumn(a, delta) {
     });
     return;
   }
-  const column = columns[target];
+  await applyColumnMove(a, issue, columns[target]);
+}
+async function dropIntoColumn(a, issue, columnIndex) {
+  const columns = columnsFor(a);
+  if (columns.length < 2) {
+    a.context.ui.toast.show({
+      message: "No board columns to move between",
+      variant: "warning"
+    });
+    return;
+  }
+  if (columnIndex < 0 || columnIndex >= columns.length) return;
+  if (boardColumnForStatus(columns, issue.statusId) === columnIndex) return;
+  await applyColumnMove(a, issue, columns[columnIndex]);
+}
+async function applyColumnMove(a, issue, column) {
   const c = a.client();
   try {
     const match = transitionForColumn(
@@ -3045,6 +3090,11 @@ var tui_default = {
       if (target?.site && target.site !== cfg().site) return;
       await sendToBacklog(actionOptions());
     }
+    async function dropCard(issue, column2) {
+      const target = ticket();
+      if (target?.site && target.site !== cfg().site) return;
+      await dropIntoColumn(actionOptions(), issue, column2);
+    }
     const openInBrowser = () => {
       const url = safeUrl(currentIssue()?.url);
       if (url) execFile("open", [url], () => void 0);
@@ -3283,6 +3333,7 @@ var tui_default = {
             setFocus("content");
             activate();
           },
+          dropCard: (issue, column2) => void dropCard(issue, column2),
           relationship: (index) => {
             setSelected(index);
             setFocus("relationships");

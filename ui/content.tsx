@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { terminalText } from "../lib/adf.ts";
 import { columnWindow } from "../lib/navigation.ts";
+import type { Issue } from "../lib/types.ts";
 import {
   color,
   leftClick,
@@ -21,6 +22,8 @@ interface ContentProps {
   enabled: () => boolean;
   open: (index: number) => void;
   openKey: (key: string) => void;
+  /** Drop a dragged card onto the board column at this absolute index. */
+  dropCard?: (issue: Issue, column: number) => void;
   register: (id: string, ref: ScrollHandle) => void;
 }
 export function WorkspaceContent(props: ContentProps) {
@@ -45,6 +48,17 @@ export function WorkspaceContent(props: ContentProps) {
     props.context.renderer?.height ?? 24,
   );
   const focused = createMemo(() => props.rows[props.selected]);
+  /** The card being dragged and the column it came from, or null. */
+  const [dragging, setDragging] = createSignal<{
+    issue: Issue;
+    column: number;
+  } | null>(null);
+  /** The board column currently under a dragged card, or null. */
+  const [dropTarget, setDropTarget] = createSignal<number | null>(null);
+  const clearDrag = () => {
+    setDragging(null);
+    setDropTarget(null);
+  };
   return (
     <Show
       when={props.board}
@@ -111,6 +125,9 @@ export function WorkspaceContent(props: ContentProps) {
                 <For each={visible()}>
                   {(group, ordinal) => {
                     const absolute = () => window().start + ordinal();
+                    const isTarget = () =>
+                      dropTarget() === absolute() &&
+                      dragging()?.column !== absolute();
                     let scroll: ScrollHandle | undefined;
                     createEffect(() => {
                       const selected = props.selected;
@@ -119,17 +136,42 @@ export function WorkspaceContent(props: ContentProps) {
                     });
                     return (
                       <box
+                        id={`column-${absolute()}`}
                         border
                         borderStyle={
-                          absolute() === props.column ? "double" : "single"
+                          isTarget() || absolute() === props.column
+                            ? "double"
+                            : "single"
                         }
                         borderColor={color(
                           props.context,
-                          absolute() === props.column ? "accent" : "muted",
+                          isTarget()
+                            ? "success"
+                            : absolute() === props.column
+                              ? "accent"
+                              : "muted",
                         )}
                         flexDirection="column"
                         width={window().width}
                         flexShrink={0}
+                        onMouseOver={() =>
+                          dragging() && setDropTarget(absolute())
+                        }
+                        onMouseOut={() =>
+                          setDropTarget((value) =>
+                            value === absolute() ? null : value,
+                          )
+                        }
+                        onMouseDrop={() => {
+                          const dragged = dragging();
+                          if (
+                            dragged &&
+                            dragged.column !== absolute() &&
+                            props.enabled()
+                          )
+                            props.dropCard?.(dragged.issue, absolute());
+                          clearDrag();
+                        }}
                       >
                         <text
                           fg={color(props.context, "base")}
@@ -180,6 +222,17 @@ export function WorkspaceContent(props: ContentProps) {
                                   )}
                                   flexDirection="column"
                                   flexShrink={0}
+                                  onMouseDrag={() => {
+                                    if (dragging()?.issue.key === row.issue.key)
+                                      return;
+                                    setDragging({
+                                      issue: row.issue,
+                                      column: absolute(),
+                                    });
+                                  }}
+                                  onMouseDragEnd={() =>
+                                    queueMicrotask(clearDrag)
+                                  }
                                   onMouseUp={leftClick(() => {
                                     if (props.enabled()) props.open(index);
                                   })}
